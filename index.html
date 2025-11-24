@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mission Control: Space Tech Simulation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto+Mono:wght@400;700&display=swap');
+        
+        body {
+            font-family: 'Roboto Mono', monospace;
+            background-color: #0f172a;
+            color: #e2e8f0;
+        }
+        
+        .header-font {
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        .scan-line {
+            width: 100%;
+            height: 2px;
+            background: rgba(16, 185, 129, 0.5);
+            position: absolute;
+            animation: scan 3s linear infinite;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        @keyframes scan {
+            0% { top: 0%; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+        }
+
+        .planet-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.3);
+        }
+
+        /* --- SIMULATION ANIMATIONS --- */
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            20% { transform: translate(-3px, 0px) rotate(1deg); }
+            30% { transform: translate(3px, 2px) rotate(0deg); }
+            40% { transform: translate(1px, -1px) rotate(1deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            60% { transform: translate(-3px, 1px) rotate(0deg); }
+            70% { transform: translate(3px, 1px) rotate(-1deg); }
+            80% { transform: translate(-1px, -1px) rotate(1deg); }
+            90% { transform: translate(1px, 2px) rotate(0deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
+
+        @keyframes pulse-red {
+            0% { background-color: rgba(220, 38, 38, 0.1); }
+            50% { background-color: rgba(220, 38, 38, 0.5); }
+            100% { background-color: rgba(220, 38, 38, 0.1); }
+        }
+
+        @keyframes glitch {
+            0% { clip-path: inset(50% 0 30% 0); transform: translate(-5px,0); }
+            20% { clip-path: inset(20% 0 60% 0); transform: translate(5px,0); }
+            40% { clip-path: inset(40% 0 40% 0); transform: translate(-5px,0); }
+            60% { clip-path: inset(80% 0 5% 0); transform: translate(5px,0); }
+            80% { clip-path: inset(10% 0 70% 0); transform: translate(-5px,0); }
+            100% { clip-path: inset(30% 0 50% 0); transform: translate(5px,0); }
+        }
+
+        .sim-shake { animation: shake 0.5s infinite; }
+        .sim-alarm { animation: pulse-red 1s infinite; }
+        .sim-glitch { animation: glitch 0.3s infinite; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Navigation / Header -->
+    <header class="bg-slate-900 border-b border-slate-700 p-4 sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <i data-lucide="rocket" class="text-emerald-400"></i>
+                <h1 class="text-xl md:text-2xl header-font font-bold text-white tracking-wider">MISSION CONTROL</h1>
+            </div>
+            <div class="flex gap-4 text-xs md:text-sm">
+                <div id="phase-indicator-1" class="flex items-center gap-2 text-emerald-400 font-bold">
+                    <span class="w-3 h-3 rounded-full bg-emerald-400 animate-pulse"></span>
+                    PHASE 1: RECON
+                </div>
+                <div id="phase-indicator-2" class="flex items-center gap-2 text-slate-500 hidden">
+                    <span class="w-3 h-3 rounded-full bg-slate-500"></span>
+                    PHASE 2: EXECUTION
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-grow p-4 md:p-8 relative overflow-hidden">
+        <div class="scan-line hidden" id="scan-effect"></div>
+
+        <!-- PHASE 1: RECONNAISSANCE DASHBOARD -->
+        <div id="recon-dashboard" class="max-w-6xl mx-auto space-y-6 transition-opacity duration-500">
+            <div class="bg-slate-800/50 border border-slate-700 rounded-lg p-6">
+                <h2 class="text-xl header-font text-emerald-400 mb-2">SYSTEM SCANNER ACTIVE</h2>
+                <p class="text-slate-300">COMMANDER: Click on planetary targets to reveal environmental data. Record this in your Logbook (Part 2) before proceeding to mission selection.</p>
+            </div>
+
+            <!-- Planets Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="planet-grid">
+                <!-- Planets injected by JS -->
+            </div>
+
+            <div class="flex justify-center mt-8">
+                <button onclick="startPhase2()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 px-8 rounded-lg shadow-lg border border-emerald-400 flex items-center gap-3 transition-all">
+                    <span>PROCEED TO MISSION PHASE</span>
+                    <i data-lucide="arrow-right"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- PHASE 2: MISSION EXECUTION -->
+        <div id="mission-dashboard" class="max-w-4xl mx-auto space-y-6 hidden opacity-0 transition-opacity duration-500">
+            
+            <!-- Status Bar -->
+            <div class="bg-slate-900 border border-slate-600 rounded-lg p-4 flex justify-between items-center">
+                <div>
+                    <span class="text-slate-400 text-sm">CURRENT OBJECTIVE</span>
+                    <div class="text-xl header-font text-white" id="mission-counter">MISSION 1 / 3</div>
+                </div>
+                <div class="text-right">
+                    <span class="text-slate-400 text-sm">SHUTTLE STATUS</span>
+                    <div class="text-emerald-400 font-bold">READY FOR LAUNCH</div>
+                </div>
+            </div>
+
+            <!-- Selection Form -->
+            <div class="bg-slate-800 border border-slate-700 rounded-lg p-6 space-y-6" id="loadout-panel">
+                
+                <!-- Step 1: Planet Selection -->
+                <div>
+                    <label class="block text-emerald-400 font-bold mb-2 flex items-center gap-2">
+                        <i data-lucide="map-pin"></i> STEP 1: SELECT TARGET
+                    </label>
+                    <select id="planet-select" class="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white focus:border-emerald-500 focus:outline-none">
+                        <option value="" disabled selected>-- Choose a Planet --</option>
+                        <!-- Options injected by JS -->
+                    </select>
+                </div>
+
+                <!-- Step 2: Tech Selection -->
+                <div>
+                    <label class="block text-emerald-400 font-bold mb-2 flex items-center gap-2">
+                        <i data-lucide="cpu"></i> STEP 2: EQUIP TECH (MAX 3)
+                    </label>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="tech-grid">
+                        <!-- Checkboxes injected by JS -->
+                    </div>
+                    <div class="text-xs text-orange-400 mt-2 hidden" id="tech-warning">⚠️ Capacity Exceeded. Maximum 3 technologies allowed.</div>
+                </div>
+
+                <!-- Launch Button -->
+                <button onclick="launchMission()" id="launch-btn" class="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-bold py-4 rounded-lg shadow-lg border-b-4 border-indigo-800 active:border-b-0 active:translate-y-1 transition-all flex justify-center items-center gap-2">
+                    <i data-lucide="rocket"></i> INITIATE LAUNCH
+                </button>
+            </div>
+
+            <!-- Results Panel (Hidden initially) -->
+            <div id="results-panel" class="hidden bg-slate-900 border border-slate-600 rounded-lg p-6 space-y-4">
+                <div class="flex items-center gap-3 border-b border-slate-700 pb-4">
+                    <div id="result-icon"></div>
+                    <div>
+                        <h3 class="text-xl font-bold header-font text-white" id="result-title">MISSION REPORT</h3>
+                        <p class="text-slate-400 text-sm" id="result-target">Target: Alpha</p>
+                    </div>
+                </div>
+                
+                <div class="space-y-3" id="result-details">
+                    <!-- Logs go here -->
+                </div>
+
+                <div class="pt-4 flex justify-end">
+                    <button onclick="nextMission()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-6 rounded flex items-center gap-2">
+                        NEXT MISSION <i data-lucide="chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Final Summary Panel (Hidden initially) -->
+            <div id="final-summary" class="hidden text-center space-y-6 pt-10">
+                <h2 class="text-3xl header-font text-emerald-400">SIMULATION COMPLETE</h2>
+                <div class="bg-slate-800 p-6 rounded-lg border border-slate-600 inline-block text-left w-full max-w-lg">
+                    <h3 class="text-white font-bold mb-4 border-b border-slate-600 pb-2">COMMANDER'S LOG</h3>
+                    <ul id="final-log-list" class="space-y-2 text-sm text-slate-300"></ul>
+                </div>
+                <div>
+                    <button onclick="location.reload()" class="bg-slate-700 hover:bg-slate-600 text-white py-2 px-6 rounded">
+                        RESET SIMULATION
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Modal for Planet Data -->
+    <div id="planet-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-slate-900 border-2 border-emerald-500 rounded-lg max-w-md w-full p-6 relative shadow-[0_0_50px_rgba(16,185,129,0.2)]">
+            <button onclick="closeModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+                <i data-lucide="x"></i>
+            </button>
+            <div class="text-center mb-6">
+                <div class="w-16 h-16 bg-emerald-500/20 rounded-full mx-auto flex items-center justify-center mb-3">
+                    <i data-lucide="scan-line" class="text-emerald-400 w-8 h-8"></i>
+                </div>
+                <h3 id="modal-title" class="text-2xl header-font text-white font-bold">PLANET NAME</h3>
+                <p class="text-emerald-400 text-sm tracking-widest">ANALYSIS COMPLETE</p>
+            </div>
+            
+            <div class="space-y-4 bg-slate-800/50 p-4 rounded border border-slate-700">
+                <div class="flex justify-between border-b border-slate-700 pb-2">
+                    <span class="text-slate-400">ATMOSPHERE</span>
+                    <span id="modal-atmosphere" class="text-white font-bold text-right">Unknown</span>
+                </div>
+                <div class="flex justify-between border-b border-slate-700 pb-2">
+                    <span class="text-slate-400">SURFACE</span>
+                    <span id="modal-surface" class="text-white font-bold text-right">Unknown</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-400">GRAVITY</span>
+                    <span id="modal-gravity" class="text-white font-bold text-right">Unknown</span>
+                </div>
+            </div>
+
+            <div class="mt-6 text-center">
+                <p class="text-xs text-slate-500 italic mb-4">Data recorded to shuttle databanks.</p>
+                <button onclick="closeModal()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded">
+                    CLOSE SCANNER
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MISSION SIMULATION OVERLAY -->
+    <div id="sim-overlay" class="fixed inset-0 bg-black z-[100] hidden flex-col items-center justify-center font-mono">
+        <div class="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%] pointer-events-none"></div>
+        
+        <!-- Status Text -->
+        <div id="sim-text-container" class="z-10 text-center space-y-4 p-8 max-w-2xl w-full">
+            <h2 id="sim-main-status" class="text-3xl md:text-5xl font-bold text-emerald-500 header-font tracking-widest">TRANSMISSION ACTIVE</h2>
+            <div id="sim-sub-status" class="text-emerald-400/80 text-sm md:text-xl typing-effect h-8">ESTABLISHING UPLINK...</div>
+        </div>
+
+        <!-- Visual Display (Center) -->
+        <div id="sim-visual" class="z-10 w-64 h-64 border-2 border-emerald-500/50 rounded-full flex items-center justify-center relative bg-slate-900/50 overflow-hidden mb-8">
+            <!-- Icons/Animations will be injected here -->
+            <i data-lucide="satellite-dish" class="text-emerald-500 w-32 h-32 animate-pulse"></i>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="w-full max-w-md h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700 z-10">
+            <div id="sim-progress" class="h-full bg-emerald-500 w-0 transition-all duration-[6000ms] ease-linear"></div>
+        </div>
+    </div>
+
+<script>
+    // --- CONFIGURATION ---
+    const PLANETS = [
+        { id: 'p1', name: 'AEROS', icon: 'wind', desc: 'Gas Giant', attr: { atmo: 'Dense/Opaque', surf: 'None (Gas)', grav: 'High' } },
+        { id: 'p2', name: 'TERRA NOVA', icon: 'globe', desc: 'Habitable World', attr: { atmo: 'Clear/Thin', surf: 'Solid/Water', grav: 'Medium' } },
+        { id: 'p3', name: 'IGNIS', icon: 'flame', desc: 'Volcanic World', attr: { atmo: 'Ash/Smoke', surf: 'Lava/Magma', grav: 'Medium' } },
+        { id: 'p4', name: 'GLACIES', icon: 'snowflake', desc: 'Ice Moon', attr: { atmo: 'Clear/Thin', surf: 'Ice/Frozen', grav: 'Low' } },
+        { id: 'p5', name: 'VEIL', icon: 'cloud-fog', desc: 'Acid World', attr: { atmo: 'Acid Clouds', surf: 'Solid/Rock', grav: 'Medium' } },
+        { id: 'p6', name: 'VOID', icon: 'octagon', desc: 'Asteroid', attr: { atmo: 'None', surf: 'Rocky', grav: 'Micro/Zero' } }
+    ];
+
+    const TECHS = [
+        { id: 'telescope', name: 'Space Telescope', icon: 'eye' },
+        { id: 'radio', name: 'Radio Telescope', icon: 'radio-tower' },
+        { id: 'orbiter', name: 'Orbiter', icon: 'satellite' },
+        { id: 'lander', name: 'Lander', icon: 'arrow-down-to-line' },
+        { id: 'rover', name: 'Rover', icon: 'truck' },
+        { id: 'probe', name: 'Flyby Probe', icon: 'send' }
+    ];
+
+    // --- STATE ---
+    let missionCount = 1;
+    const maxMissions = 3;
+    let missionHistory = [];
+
+    // --- INIT ---
+    document.addEventListener('DOMContentLoaded', () => {
+        lucide.createIcons();
+        renderReconGrid();
+        renderMissionForm();
+    });
+
+    // --- PHASE 1: RECON ---
+    function renderReconGrid() {
+        const grid = document.getElementById('planet-grid');
+        grid.innerHTML = PLANETS.map(p => `
+            <div onclick="openPlanetModal('${p.id}')" class="planet-card bg-slate-800 border border-slate-700 p-6 rounded-lg cursor-pointer transition-all relative overflow-hidden group">
+                <div class="absolute top-0 right-0 p-2 opacity-50 group-hover:opacity-100">
+                    <i data-lucide="scan" class="text-emerald-400"></i>
+                </div>
+                <div class="flex items-center gap-4 mb-4">
+                    <div class="p-3 bg-slate-700 rounded-full text-emerald-400">
+                        <i data-lucide="${p.icon}" width="24" height="24"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold text-white header-font">${p.name}</h3>
+                        <p class="text-xs text-slate-400">${p.desc}</p>
+                    </div>
+                </div>
+                <div class="text-center">
+                    <span class="text-xs font-mono text-emerald-500 border border-emerald-500/30 px-2 py-1 rounded bg-emerald-500/10">CLICK TO ANALYZE</span>
+                </div>
+            </div>
+        `).join('');
+        lucide.createIcons();
+    }
+
+    function openPlanetModal(id) {
+        const p = PLANETS.find(x => x.id === id);
+        document.getElementById('modal-title').innerText = p.name;
+        document.getElementById('modal-atmosphere').innerText = p.attr.atmo;
+        document.getElementById('modal-surface').innerText = p.attr.surf;
+        document.getElementById('modal-gravity').innerText = p.attr.grav;
+        
+        document.getElementById('planet-modal').classList.remove('hidden');
+        document.getElementById('planet-modal').classList.add('flex');
+    }
+
+    function closeModal() {
+        document.getElementById('planet-modal').classList.add('hidden');
+        document.getElementById('planet-modal').classList.remove('flex');
+    }
+
+    function startPhase2() {
+        document.getElementById('recon-dashboard').classList.add('hidden');
+        document.getElementById('mission-dashboard').classList.remove('hidden');
+        document.getElementById('mission-dashboard').classList.remove('opacity-0');
+        
+        // Update header indicators
+        document.getElementById('phase-indicator-1').classList.remove('text-emerald-400', 'font-bold');
+        document.getElementById('phase-indicator-1').classList.add('text-slate-500');
+        document.getElementById('phase-indicator-1').querySelector('span').classList.remove('bg-emerald-400', 'animate-pulse');
+        document.getElementById('phase-indicator-1').querySelector('span').classList.add('bg-slate-500');
+
+        document.getElementById('phase-indicator-2').classList.remove('hidden', 'text-slate-500');
+        document.getElementById('phase-indicator-2').classList.add('flex', 'text-emerald-400', 'font-bold');
+        document.getElementById('phase-indicator-2').querySelector('span').classList.remove('bg-slate-500');
+        document.getElementById('phase-indicator-2').querySelector('span').classList.add('bg-emerald-400', 'animate-pulse');
+
+        document.getElementById('scan-effect').classList.remove('hidden');
+    }
+
+    // --- PHASE 2: MISSION ---
+    function renderMissionForm() {
+        // Planet Select
+        const select = document.getElementById('planet-select');
+        PLANETS.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.id;
+            opt.innerText = p.name + ` (${p.desc})`;
+            select.appendChild(opt);
+        });
+
+        // Tech Checkboxes
+        const grid = document.getElementById('tech-grid');
+        grid.innerHTML = TECHS.map(t => `
+            <label class="flex items-center gap-3 bg-slate-900 border border-slate-700 p-3 rounded cursor-pointer hover:bg-slate-800 transition-colors">
+                <input type="checkbox" name="tech" value="${t.id}" class="w-5 h-5 text-emerald-500 rounded focus:ring-emerald-500 bg-slate-800 border-slate-600" onchange="checkTechLimit()">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="${t.icon}" class="text-slate-400" width="18"></i>
+                    <span class="text-sm font-bold text-slate-200">${t.name}</span>
+                </div>
+            </label>
+        `).join('');
+        lucide.createIcons();
+    }
+
+    function checkTechLimit() {
+        const checked = document.querySelectorAll('input[name="tech"]:checked');
+        const warning = document.getElementById('tech-warning');
+        const launchBtn = document.getElementById('launch-btn');
+
+        if (checked.length > 3) {
+            warning.classList.remove('hidden');
+            launchBtn.disabled = true;
+        } else {
+            warning.classList.add('hidden');
+            launchBtn.disabled = false;
+        }
+    }
+
+    function launchMission() {
+        const planetId = document.getElementById('planet-select').value;
+        const checked = Array.from(document.querySelectorAll('input[name="tech"]:checked')).map(cb => cb.value);
+
+        if (!planetId) {
+            alert("COMMANDER: You must select a target planet.");
+            return;
+        }
+        if (checked.length === 0) {
+            alert("COMMANDER: Shuttle payload is empty. Select at least 1 technology.");
+            return;
+        }
+        if (checked.length > 3) {
+             alert("COMMANDER: Weight limit exceeded.");
+             return;
+        }
+
+        const planet = PLANETS.find(p => p.id === planetId);
+        const results = runSimulation(planet, checked);
+        
+        // --- TRIGGER VISUAL SIMULATION ---
+        playSimulationSequence(planet, results, () => {
+             displayResults(planet, results);
+        });
+    }
+
+    // --- LOGIC ENGINE ---
+    function runSimulation(planet, techIds) {
+        let logs = [];
+        let successCount = 0;
+
+        techIds.forEach(tId => {
+            let status = 'SUCCESS';
+            let msg = '';
+            const techName = TECHS.find(t => t.id === tId).name;
+
+            // Logic Rules
+            if (tId === 'radio') {
+                 msg = "Signal penetrated atmosphere clearly. Data received.";
+            } else if (tId === 'telescope') {
+                if (planet.attr.atmo.includes('Opaque') || planet.attr.atmo.includes('Ash')) {
+                    status = 'FAILURE';
+                    msg = "Visuals completely blocked by thick atmosphere.";
+                } else {
+                    msg = "Crystal clear images captured.";
+                }
+            } else if (tId === 'orbiter') {
+                if (planet.attr.grav === 'High') {
+                    status = 'FAILURE';
+                    msg = "Gravity well too strong. Orbiter pulled into atmosphere and burned up.";
+                } else {
+                    msg = "Stable orbit achieved. Surface mapping complete.";
+                }
+            } else if (tId === 'lander' || tId === 'rover') {
+                if (planet.attr.surf.includes('Gas')) {
+                    status = 'FAILURE';
+                    msg = "No solid surface. Unit sank into core and was crushed.";
+                } else if (planet.attr.surf.includes('Lava')) {
+                    status = 'FAILURE';
+                    msg = "Unit melted upon contact with surface.";
+                } else if (tId === 'rover' && planet.attr.surf.includes('Ice')) {
+                    status = 'PARTIAL';
+                    msg = "Wheels slipped on ice. Limited data gathered.";
+                    successCount += 0.5; // Half point
+                } else {
+                    msg = "Touchdown successful. Samples analyzed.";
+                }
+            } else if (tId === 'probe') {
+                 msg = "Flyby successful. Brief data packet received.";
+            }
+
+            if (status === 'SUCCESS') successCount++;
+            
+            logs.push({ tech: techName, status: status, msg: msg });
+        });
+
+        return { logs, successCount };
+    }
+
+    // --- VISUAL SIMULATION SYSTEM ---
+    function playSimulationSequence(planet, results, callback) {
+        const overlay = document.getElementById('sim-overlay');
+        const mainText = document.getElementById('sim-main-status');
+        const subText = document.getElementById('sim-sub-status');
+        const visual = document.getElementById('sim-visual');
+        const progress = document.getElementById('sim-progress');
+
+        // Reset
+        overlay.classList.remove('hidden');
+        overlay.classList.add('flex');
+        progress.style.width = '0%';
+        mainText.className = "text-3xl md:text-5xl font-bold text-emerald-500 header-font tracking-widest";
+        mainText.innerText = "TRANSMISSION ACTIVE";
+        subText.innerText = `APPROACHING TARGET: ${planet.name}...`;
+        visual.innerHTML = `<i data-lucide="satellite" class="text-emerald-500 w-32 h-32 animate-pulse"></i>`;
+        lucide.createIcons();
+        overlay.className = "fixed inset-0 bg-black z-[100] flex flex-col items-center justify-center font-mono"; // reset animations
+
+        // Determine Visual Outcome based on worst failure
+        const outcome = determineVisualOutcome(results.logs);
+
+        // Start Animation Sequence
+        setTimeout(() => { progress.style.width = '100%'; }, 100);
+
+        // Timeline:
+        // 0s: Start
+        // 2s: Entry / Hazard
+        // 4s: Impact / Success
+        // 6s: Finish
+
+        setTimeout(() => {
+            subText.innerText = "ENTERING ATMOSPHERE...";
+            if (outcome.type === 'CRUSH' || outcome.type === 'MELT' || outcome.type === 'BURN') {
+                overlay.classList.add('sim-alarm'); // Red flashing
+                mainText.classList.remove('text-emerald-500');
+                mainText.classList.add('text-red-500');
+            }
+        }, 2000);
+
+        setTimeout(() => {
+            // SHOW THE CLIP (Visual)
+            handleVisualClip(outcome, visual, mainText, subText);
+        }, 4000);
+
+        setTimeout(() => {
+            overlay.classList.add('hidden');
+            overlay.classList.remove('flex');
+            callback();
+        }, 6500);
+    }
+
+    function determineVisualOutcome(logs) {
+        // Priority: Crushed > Melted > Burned > Blocked > Success
+        const msgs = logs.map(l => l.msg.toLowerCase());
+
+        if (msgs.some(m => m.includes('crushed') || m.includes('sank'))) return { type: 'CRUSH', text: "PRESSURE CRITICAL" };
+        if (msgs.some(m => m.includes('melted'))) return { type: 'MELT', text: "TEMP CRITICAL" };
+        if (msgs.some(m => m.includes('burned up') || m.includes('decay'))) return { type: 'BURN', text: "ALTITUDE LOST" };
+        if (msgs.some(m => m.includes('blocked'))) return { type: 'BLOCKED', text: "VISUALS OBSTRUCTED" };
+        
+        return { type: 'SUCCESS', text: "DATA ACQUIRED" };
+    }
+
+    function handleVisualClip(outcome, visualContainer, mainText, subText) {
+        lucide.createIcons();
+        mainText.innerText = outcome.text;
+        
+        if (outcome.type === 'SUCCESS') {
+            subText.innerText = "PACKET TRANSFER COMPLETE";
+            visualContainer.innerHTML = `<i data-lucide="check-circle" class="text-emerald-500 w-32 h-32"></i>`;
+            visualContainer.className = "z-10 w-64 h-64 border-4 border-emerald-500 rounded-full flex items-center justify-center bg-emerald-900/20";
+        } 
+        else if (outcome.type === 'CRUSH') {
+            subText.innerText = "STRUCTURAL INTEGRITY FAILING...";
+            visualContainer.innerHTML = `<i data-lucide="arrow-down-to-line" class="text-red-500 w-32 h-32"></i>`;
+            visualContainer.className = "z-10 w-64 h-64 border-4 border-red-500 rounded-full flex items-center justify-center bg-red-900/20 sim-shake";
+            // Shrink effect
+            setTimeout(() => visualContainer.classList.add('scale-0', 'transition-transform', 'duration-500'), 500);
+        }
+        else if (outcome.type === 'MELT') {
+            subText.innerText = "HULL TEMPERATURE EXCEEDED...";
+            visualContainer.innerHTML = `<i data-lucide="flame" class="text-orange-500 w-32 h-32"></i>`;
+            visualContainer.className = "z-10 w-64 h-64 border-4 border-orange-500 rounded-full flex items-center justify-center bg-orange-900/20 sim-glitch";
+        }
+        else if (outcome.type === 'BURN') {
+            subText.innerText = "ORBITAL DECAY DETECTED...";
+            visualContainer.innerHTML = `<i data-lucide="satellite" class="text-red-500 w-32 h-32 rotate-45"></i>`;
+            visualContainer.className = "z-10 w-64 h-64 border-4 border-red-500 rounded-full flex items-center justify-center bg-red-900/20 sim-shake";
+        }
+        else if (outcome.type === 'BLOCKED') {
+            subText.innerText = "NO VISUAL FEED...";
+            visualContainer.innerHTML = `<i data-lucide="eye-off" class="text-slate-500 w-32 h-32"></i>`;
+            visualContainer.className = "z-10 w-64 h-64 border-4 border-slate-500 rounded-full flex items-center justify-center bg-slate-900";
+        }
+        lucide.createIcons();
+    }
+
+    function displayResults(planet, resultData) {
+        document.getElementById('loadout-panel').classList.add('hidden');
+        document.getElementById('results-panel').classList.remove('hidden');
+
+        // Update Header
+        const title = document.getElementById('result-title');
+        const iconDiv = document.getElementById('result-icon');
+        const target = document.getElementById('result-target');
+
+        target.innerText = `Target: ${planet.name}`;
+
+        // Determine overall mission status
+        const isTotalFailure = resultData.logs.every(l => l.status === 'FAILURE');
+        
+        if (isTotalFailure) {
+            title.innerText = "MISSION FAILED";
+            title.className = "text-xl font-bold header-font text-red-500";
+            iconDiv.innerHTML = `<i data-lucide="alert-triangle" class="text-red-500 w-8 h-8"></i>`;
+        } else {
+            title.innerText = "MISSION SUCCESS";
+            title.className = "text-xl font-bold header-font text-emerald-400";
+            iconDiv.innerHTML = `<i data-lucide="check-circle" class="text-emerald-400 w-8 h-8"></i>`;
+        }
+        lucide.createIcons();
+
+        // Populate Details
+        const container = document.getElementById('result-details');
+        container.innerHTML = resultData.logs.map(log => {
+            let color = 'text-emerald-400';
+            if (log.status === 'FAILURE') color = 'text-red-400';
+            if (log.status === 'PARTIAL') color = 'text-yellow-400';
+            
+            return `
+                <div class="bg-slate-800 p-3 rounded border-l-4 ${log.status === 'FAILURE' ? 'border-red-500' : (log.status === 'PARTIAL' ? 'border-yellow-500' : 'border-emerald-500')}">
+                    <div class="flex justify-between font-bold text-sm mb-1">
+                        <span class="text-white">${log.tech}</span>
+                        <span class="${color}">${log.status}</span>
+                    </div>
+                    <p class="text-slate-400 text-xs font-mono">${log.msg}</p>
+                </div>
+            `;
+        }).join('');
+
+        // Save to history
+        missionHistory.push({
+            missionNum: missionCount,
+            planet: planet.name,
+            outcome: isTotalFailure ? 'FAILED' : 'SUCCESS',
+            details: resultData.logs
+        });
+    }
+
+    function nextMission() {
+        if (missionCount >= maxMissions) {
+            showFinalSummary();
+        } else {
+            missionCount++;
+            
+            // Reset UI
+            document.getElementById('mission-counter').innerText = `MISSION ${missionCount} / 3`;
+            document.getElementById('results-panel').classList.add('hidden');
+            document.getElementById('loadout-panel').classList.remove('hidden');
+            
+            // Clear inputs
+            document.getElementById('planet-select').selectedIndex = 0;
+            document.querySelectorAll('input[name="tech"]').forEach(cb => cb.checked = false);
+            
+            // Scroll to top
+            document.getElementById('mission-dashboard').scrollIntoView({ behavior: 'smooth' });
+        }
+    }
+
+    function showFinalSummary() {
+        document.getElementById('results-panel').classList.add('hidden');
+        document.getElementById('final-summary').classList.remove('hidden');
+        document.getElementById('mission-counter').innerText = "SIMULATION ENDED";
+        
+        const list = document.getElementById('final-log-list');
+        list.innerHTML = missionHistory.map(m => `
+            <li class="flex justify-between border-b border-slate-700 py-2">
+                <span>Mission ${m.missionNum}: ${m.planet}</span>
+                <span class="${m.outcome === 'SUCCESS' ? 'text-emerald-400' : 'text-red-400'} font-bold">${m.outcome}</span>
+            </li>
+        `).join('');
+    }
+
+</script>
+</body>
+</html>
